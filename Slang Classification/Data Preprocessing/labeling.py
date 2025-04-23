@@ -7,7 +7,7 @@ from google import genai
 client = genai.Client(api_key="AIzaSyA7SBpB1oAJxs0tiSl6_wZeN7lUKv4MyuQ")
 
 # File paths
-input_file = "Slang Classification/Data Preprocessing/target_data.csv"
+input_file = "Slang Classification/Data Preprocessing/ready_for_labelling.csv"
 output_file = "chatgpt_prelabel.csv"
 backup_file = "chatgpt_backup.csv"
 
