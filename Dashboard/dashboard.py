@@ -12,6 +12,9 @@ import numpy as np
 from lime.lime_text import LimeTextExplainer
 from sklearn.pipeline import make_pipeline
 
+# streamlit run c:/personal/Code/S6/NLP/Natural-Languange_Processing/Dashboard/dashboard.py
+
+
 # Load and prepare data
 @st.cache_data
 def load_data(file_path):
@@ -153,6 +156,56 @@ def show_metrics(clf, X_train, y_train, X_test, y_test):
     ax.set_title("Confusion Matrix (Test Data)")
     st.pyplot(fig)
 
+def run_batch_prediction(model, vectorizer, label_map):
+    st.subheader("📂 Batch Slang Classification")
+
+    uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+
+        if 'processed_text' not in df.columns:
+            st.error("CSV must contain a 'processed_text' column.")
+            return
+
+        X = df['processed_text'].fillna("")
+        X_vectorized = vectorizer.transform(X)
+        predictions = model.predict(X_vectorized)
+        probs = model.predict_proba(X_vectorized)
+
+        df['Predicted_Label'] = predictions
+        df['Predicted_Class'] = df['Predicted_Label'].map(label_map)
+        df['Max_Probability'] = probs.max(axis=1)
+
+        # Evaluation (if ground truth exists)
+        if 'Category_Label' in df.columns:
+            correct = (df['Predicted_Label'] == df['Category_Label']).sum()
+            total = len(df)
+            accuracy = correct / total
+            st.success(f"✅ Correct Predictions: {correct} / {total} ({accuracy:.2%})")
+            st.error(f"❌ Incorrect Predictions: {total - correct} / {total} ({1 - accuracy:.2%})")
+        else:
+            st.warning("⚠️ Ground truth (`Category_Label`) not found. Accuracy can't be computed.")
+
+        st.markdown("### 📄 Preview of Results")
+
+        # If actual class exists, map it to human-readable labels
+        if 'Category_Label' in df.columns:
+            df['Actual_Class'] = df['Category_Label'].map(label_map)
+            preview_cols = ['processed_text', 'Actual_Class', 'Predicted_Class', 'Max_Probability']
+        else:
+            preview_cols = ['processed_text', 'Predicted_Class', 'Max_Probability']
+
+        st.dataframe(df[preview_cols].head())
+
+        with st.expander("🔍 Show Full Result Table"):
+            st.data_editor(df[preview_cols], use_container_width=True, num_rows="dynamic")
+
+
+        # Download results
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("⬇️ Download Predictions CSV", data=csv, file_name="batch_predictions.csv", mime="text/csv")
+
+
 def main():
     st.set_page_config(page_title="Slang Classifier", layout="wide")
     st.title("🧪 Slang Classifier Dashboard")
@@ -169,7 +222,13 @@ def main():
     df = load_data(file_path)
     nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw = train_or_load_model(df, model_path)
 
-    tab1, tab2, tab3 = st.tabs(["🔍 Classify Text", "📊 Model Info", "📚 Examples & Limitations"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+    "🔍 Classify Text",
+    "📂 Batch Prediction", 
+    "📊 Model Info", 
+    "📚 Examples & Limitations"
+])
+
 
     with tab1:
         st.markdown("### 🎯 Enter Reddit-style or slang-heavy text below:")
@@ -181,10 +240,13 @@ def main():
                 st.warning("Please enter some text before classifying.")
 
     with tab2:
+        run_batch_prediction(nb_clf, tfidf_vectorizer, label_map)
+
+    with tab3:
         show_model_info()
         show_metrics(nb_clf, X_train, y_train, X_test, y_test)
 
-    with tab3:
+    with tab4:
         show_example_predictions()
         show_limitations()
 
