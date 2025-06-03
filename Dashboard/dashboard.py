@@ -28,12 +28,10 @@ def train_or_load_model(df, model_path):
     y = df['Category_Label']
     X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    tfidf_vectorizer = TfidfVectorizer()
-    X_train = tfidf_vectorizer.fit_transform(X_train_raw)
-    X_test = tfidf_vectorizer.transform(X_test_raw)
-
     if os.path.exists(model_path):
         nb_clf, tfidf_vectorizer = joblib.load(model_path)
+        X_train = tfidf_vectorizer.transform(X_train_raw)
+        X_test = tfidf_vectorizer.transform(X_test_raw)
     else:
         tfidf_vectorizer = TfidfVectorizer()
         X_train = tfidf_vectorizer.fit_transform(X_train_raw)
@@ -42,7 +40,6 @@ def train_or_load_model(df, model_path):
         nb_clf = MultinomialNB()
         nb_clf.fit(X_train, y_train)
         joblib.dump((nb_clf, tfidf_vectorizer), model_path)
-
 
     return nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw
 
