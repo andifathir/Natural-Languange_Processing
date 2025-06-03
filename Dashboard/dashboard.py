@@ -13,7 +13,7 @@ from lime.lime_text import LimeTextExplainer
 from sklearn.pipeline import make_pipeline
 
 # streamlit run c:/personal/Code/S6/NLP/Natural-Languange_Processing/Dashboard/dashboard.py
-
+# streamlit run c:\personal\S6\Natural-Languange-Processing\Natural-Languange_Processing\Dashboard\dashboard.py
 
 # Load and prepare data
 @st.cache_data
@@ -33,11 +33,16 @@ def train_or_load_model(df, model_path):
     X_test = tfidf_vectorizer.transform(X_test_raw)
 
     if os.path.exists(model_path):
-        nb_clf = joblib.load(model_path)
+        nb_clf, tfidf_vectorizer = joblib.load(model_path)
     else:
+        tfidf_vectorizer = TfidfVectorizer()
+        X_train = tfidf_vectorizer.fit_transform(X_train_raw)
+        X_test = tfidf_vectorizer.transform(X_test_raw)
+
         nb_clf = MultinomialNB()
         nb_clf.fit(X_train, y_train)
-        joblib.dump(nb_clf, model_path)
+        joblib.dump((nb_clf, tfidf_vectorizer), model_path)
+
 
     return nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw
 
