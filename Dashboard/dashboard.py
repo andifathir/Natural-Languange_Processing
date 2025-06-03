@@ -200,6 +200,20 @@ def run_batch_prediction(model, vectorizer, label_map):
         with st.expander("🔍 Show Full Result Table"):
             st.data_editor(df[preview_cols], use_container_width=True, num_rows="dynamic")
 
+        # 📊 Plot predicted class distribution (matching style of Class Probabilities)
+        st.markdown("### 📊 Predicted Class Distribution")
+
+        # Get class counts and reindex to keep consistent label order
+        class_counts = df['Predicted_Class'].value_counts().reindex(label_map.values(), fill_value=0)
+
+        # Prepare DataFrame for st.bar_chart
+        dist_df = pd.DataFrame({
+            'Predicted Count': class_counts.values
+        }, index=class_counts.index)
+
+        # Display as bar chart (Streamlit native style)
+        st.bar_chart(dist_df)
+
 
         # Download results
         csv = df.to_csv(index=False).encode('utf-8')
