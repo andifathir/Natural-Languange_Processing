@@ -12,9 +12,6 @@ import numpy as np
 from lime.lime_text import LimeTextExplainer
 from sklearn.pipeline import make_pipeline
 
-# streamlit run c:/personal/Code/S6/NLP/Natural-Languange_Processing/Dashboard/dashboard.py
-# streamlit run c:\personal\S6\Natural-Languange-Processing\Natural-Languange_Processing\Dashboard\dashboard.py
-
 # Load and prepare data
 @st.cache_data
 def load_data(file_path):
@@ -23,16 +20,24 @@ def load_data(file_path):
     return df
 
 @st.cache_data
-def train_or_load_model(df, model_path):
-    X = df['processed_text']
-    y = df['Category_Label']
-    X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
+def train_or_load_model(model_path, file_path=None):
     if os.path.exists(model_path):
-        nb_clf, tfidf_vectorizer = joblib.load(model_path)
-        X_train = tfidf_vectorizer.transform(X_train_raw)
-        X_test = tfidf_vectorizer.transform(X_test_raw)
+        loaded = joblib.load(model_path)
+        if isinstance(loaded, tuple) and len(loaded) == 2:
+            nb_clf, tfidf_vectorizer = loaded
+            return nb_clf, tfidf_vectorizer, None, None, None, None, None
+        else:
+            raise ValueError("Saved model file is not a (model, vectorizer) tuple.")
     else:
+        if file_path is None:
+            raise ValueError("Model not found and no dataset provided to train it.")
+
+        df = pd.read_csv(file_path).dropna(subset=['processed_text', 'Category_Label'])
+
+        X = df['processed_text']
+        y = df['Category_Label']
+        X_train_raw, X_test_raw, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
         tfidf_vectorizer = TfidfVectorizer()
         X_train = tfidf_vectorizer.fit_transform(X_train_raw)
         X_test = tfidf_vectorizer.transform(X_test_raw)
@@ -41,7 +46,8 @@ def train_or_load_model(df, model_path):
         nb_clf.fit(X_train, y_train)
         joblib.dump((nb_clf, tfidf_vectorizer), model_path)
 
-    return nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw
+        return nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw
+
 
 label_map = {
     0: "Casual Slang",
@@ -49,7 +55,6 @@ label_map = {
     2: "Offensive Slang",
     3: "No Slang"
 }
-
 
 def display_prediction_details(model, vectorizer, input_text, label_map):
     st.subheader("🔍 Prediction Results")
@@ -70,10 +75,8 @@ def display_prediction_details(model, vectorizer, input_text, label_map):
     }).sort_values(by='Probability', ascending=False)
     st.bar_chart(prob_df.set_index('Class'))
 
-    # Wrap the LIME explanation inside an expander
     with st.expander("🔍 See Detailed Explanation (LIME)"):
         explain_prediction_with_lime(model, vectorizer, input_text, label_map)
-
 
 def explain_prediction_with_lime(model, vectorizer, input_text, label_map):
     class_names = [label_map[i] for i in sorted(label_map)]
@@ -92,11 +95,9 @@ def explain_prediction_with_lime(model, vectorizer, input_text, label_map):
 
     st.subheader("🧠 Word Contributions (LIME Explanation)")
 
-    # Use Streamlit columns to restrict width
-    col1, col2, col3 = st.columns([2, 1, 1])  # middle column is wider
-
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        fig, ax = plt.subplots(figsize=(8, 6))  # tighter size
+        fig, ax = plt.subplots(figsize=(8, 6))
         colors = ['green' if v > 0 else 'red' for v in word_contributions.values()]
         ax.barh(list(word_contributions.keys()), word_contributions.values(), color=colors)
 
@@ -109,19 +110,18 @@ def explain_prediction_with_lime(model, vectorizer, input_text, label_map):
 
         st.pyplot(fig)
 
-
 def show_model_info():
     st.subheader("📌 Model Info & Performance Snapshot")
     st.markdown("""
-    **Model:** RedditSlang v1.1  
-    **Description:** This model classifies input text into four predefined slang categories using a Naive Bayes classifier trained on Reddit-style data.  
-    **Classes:**  
-    - 🟢 **Casual Slang**: Everyday relaxed informal speech  
-    - 💬 **Internet Slang**: Online-specific language like "LOL", "brb"  
-    - 🚫 **Offensive Slang**: Toxic, abusive, or profane expressions  
-    - ✅ **No Slang**: Neutral or formal language 
+    **Model:** RedditSlang v1.1
+    **Description:** This model classifies input text into four predefined slang categories using a Naive Bayes classifier trained on Reddit-style data.
+    **Classes:**
+    - 🟢 **Casual Slang**: Everyday relaxed informal speech
+    - 💬 **Internet Slang**: Online-specific language like "LOL", "brb"
+    - 🚫 **Offensive Slang**: Toxic, abusive, or profane expressions
+    - ✅ **No Slang**: Neutral or formal language
     """)
-    st.markdown("**Overall Performance:** Accuracy around ~85%")
+    st.markdown("**Overall Performance:** Accuracy around ~80%")
 
 def show_example_predictions():
     st.subheader("💡 Example Predictions")
@@ -141,22 +141,6 @@ def show_limitations():
     - Sarcasm, irony, and multilingual slang may be misclassified.
     - The model is trained primarily on English Reddit content.
     """)
-
-def show_metrics(clf, X_train, y_train, X_test, y_test):
-    st.subheader("📈 Model Evaluation Metrics")
-    pred_train = clf.predict(X_train)
-    pred_test = clf.predict(X_test)
-
-    st.write(f"**Train Accuracy:** {accuracy_score(y_train, pred_train):.4f}")
-    st.write(f"**Test Accuracy:** {accuracy_score(y_test, pred_test):.4f}")
-
-    cm = confusion_matrix(y_test, pred_test)
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-    ax.set_xlabel("Predicted")
-    ax.set_ylabel("Actual")
-    ax.set_title("Confusion Matrix (Test Data)")
-    st.pyplot(fig)
 
 def run_batch_prediction(model, vectorizer, label_map):
     st.subheader("📂 Batch Slang Classification")
@@ -178,7 +162,6 @@ def run_batch_prediction(model, vectorizer, label_map):
         df['Predicted_Class'] = df['Predicted_Label'].map(label_map)
         df['Max_Probability'] = probs.max(axis=1)
 
-        # Evaluation (if ground truth exists)
         if 'Category_Label' in df.columns:
             correct = (df['Predicted_Label'] == df['Category_Label']).sum()
             total = len(df)
@@ -190,7 +173,6 @@ def run_batch_prediction(model, vectorizer, label_map):
 
         st.markdown("### 📄 Preview of Results")
 
-        # If actual class exists, map it to human-readable labels
         if 'Category_Label' in df.columns:
             df['Actual_Class'] = df['Category_Label'].map(label_map)
             preview_cols = ['processed_text', 'Actual_Class', 'Predicted_Class', 'Max_Probability']
@@ -202,49 +184,40 @@ def run_batch_prediction(model, vectorizer, label_map):
         with st.expander("🔍 Show Full Result Table"):
             st.data_editor(df[preview_cols], use_container_width=True, num_rows="dynamic")
 
-        # 📊 Plot predicted class distribution (matching style of Class Probabilities)
         st.markdown("### 📊 Predicted Class Distribution")
 
-        # Get class counts and reindex to keep consistent label order
         class_counts = df['Predicted_Class'].value_counts().reindex(label_map.values(), fill_value=0)
 
-        # Prepare DataFrame for st.bar_chart
         dist_df = pd.DataFrame({
             'Predicted Count': class_counts.values
         }, index=class_counts.index)
 
-        # Display as bar chart (Streamlit native style)
         st.bar_chart(dist_df)
 
-
-        # Download results
         csv = df.to_csv(index=False).encode('utf-8')
         st.download_button("⬇️ Download Predictions CSV", data=csv, file_name="batch_predictions.csv", mime="text/csv")
-
 
 def main():
     st.set_page_config(page_title="Slang Classifier", layout="wide")
     st.title("🧪 Slang Classifier Dashboard")
 
-    file_path = 'Dashboard/balanced_dataset_nlpaug.csv'
+    file_path = 'preprocessed_augmented_dataasdasdasd.csv'
     model_path = "naive_bayes_model.pkl"
-    label_map = {
-        0: "Casual Slang",
-        1: "Internet Slang",
-        2: "Offensive Slang",
-        3: "No Slang"
-    }
 
-    df = load_data(file_path)
-    nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw = train_or_load_model(df, model_path)
+    # Only pass file_path if training is needed
+    nb_clf, tfidf_vectorizer, X_train, y_train, X_test, y_test, X_test_raw = train_or_load_model(
+        model_path=model_path,
+        file_path=file_path if not os.path.exists(model_path) else None
+    )
+
+    df = load_data(file_path) if os.path.exists(file_path) else None
 
     tab1, tab2, tab3, tab4 = st.tabs([
-    "🔍 Classify Text",
-    "📂 Batch Prediction", 
-    "📊 Model Info", 
-    "📚 Examples & Limitations"
-])
-
+        "🔍 Classify Text",
+        "📂 Batch Prediction",
+        "📈 Model Info",
+        "📚 Examples & Limitations"
+    ])
 
     with tab1:
         st.markdown("### 🎯 Enter Reddit-style or slang-heavy text below:")
@@ -259,8 +232,7 @@ def main():
         run_batch_prediction(nb_clf, tfidf_vectorizer, label_map)
 
     with tab3:
-        show_model_info()
-        show_metrics(nb_clf, X_train, y_train, X_test, y_test)
+          show_model_info()
 
     with tab4:
         show_example_predictions()
