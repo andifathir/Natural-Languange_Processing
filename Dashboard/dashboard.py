@@ -201,7 +201,7 @@ def main():
     st.set_page_config(page_title="Slang Classifier", layout="wide")
     st.title("🧪 Slang Classifier Dashboard")
 
-    file_path = 'preprocessed_augmented_dataasdasdasd.csv'
+    file_path = 'preprocessed_augmented_dataasdasasdasddasd.csv'
     model_path = "naive_bayes_model.pkl"
 
     # Only pass file_path if training is needed
